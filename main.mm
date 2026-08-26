@@ -2,17 +2,17 @@
 #include <UIKit/UIKit.h>
 #include <Metal/Metal.h>
 #include <MetalKit/MetalKit.h>
+#include "imgui.h"
 @interface OverlayWindow : UIWindow
 @end
 @implementation OverlayWindow
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    UIView *hitView = [super hitTest:point withEvent:event];
-    if (hitView == self || hitView == self.rootViewController.view) {
-        if (![[ImGuiOverlay sharedInstance] isInteractingWithMenu]) {
-            return nil;
-        }
+    ImGuiIO &io = ImGui::GetIO();
+    // Agar ImGui ka koi menu ya floating button touch ke niche nahi hai toh touch game ko pass karo
+    if (!io.WantCaptureMouse) {
+        return nil;
     }
-    return hitView;
+    return [super hitTest:point withEvent:event];
 }
 @end
 @interface OverlayViewController : UIViewController <MTKViewDelegate>
