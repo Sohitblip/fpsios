@@ -56,9 +56,8 @@ static void hook_MTKView_draw(id self, SEL _cmd) {
     if (!rpd || !view.currentDrawable) return;
 
     // Don't clear the framebuffer — just load existing content
-    for (MTLRenderPassColorAttachmentDescriptor *att in rpd.colorAttachments) {
-        att.loadAction = MTLLoadActionLoad;
-    }
+    // MTLRenderPassColorAttachmentDescriptorArray doesn't support fast-enumeration; use index directly.
+    rpd.colorAttachments[0].loadAction = MTLLoadActionLoad;
 
     [[ImGuiOverlay sharedInstance] beginFrameWithCommandBuffer:cmdBuf
                                           renderPassDescriptor:rpd];
