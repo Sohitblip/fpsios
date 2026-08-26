@@ -67,7 +67,7 @@
 - (void)updateTelemetry {
   _frameCount++;
   auto currentTime = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float, std::milli> elapsed = currentTime - _lastTime;
+  std::chrono::duration<float, std::chrono::milliseconds::period> elapsed = currentTime - _lastTime;
   if (elapsed.count() >= 500.0f) {
     _fps = (_frameCount * 1000.0f) / elapsed.count();
     _frameTime = elapsed.count() / _frameCount;
