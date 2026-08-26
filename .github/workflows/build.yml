@@ -9,6 +9,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+      - name: Install Build Tools
+        run: |
+          brew install ldid
       - name: Setup Theos
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
