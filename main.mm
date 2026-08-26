@@ -2,17 +2,21 @@
 #include <UIKit/UIKit.h>
 #include <Metal/Metal.h>
 #include <MetalKit/MetalKit.h>
-#include "imgui.h"
 @interface OverlayWindow : UIWindow
 @end
 @implementation OverlayWindow
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
-    ImGuiIO &io = ImGui::GetIO();
-    // Agar ImGui ka koi menu ya floating button touch ke niche nahi hai toh touch game ko pass karo
-    if (!io.WantCaptureMouse) {
-        return nil;
+    // 1. Agar Main Menu open hai -> Pure overlay window ko touch do taaki menu operate ho sake
+    if ([ImGuiOverlay sharedInstance].showMenu) {
+        return [super hitTest:point withEvent:event];
     }
-    return [super hitTest:point withEvent:event];
+    // 2. Agar Menu closed hai -> Sirf Top-Left Open Menu button area (width 120, height 60) touch lega
+    CGRect toggleButtonRect = CGRectMake(10, 10, 130, 60);
+    if (CGRectContainsPoint(toggleButtonRect, point)) {
+        return [super hitTest:point withEvent:event];
+    }
+    // 3. Baaki puri screen ka touch seedha game ko forward karo
+    return nil;
 }
 @end
 @interface OverlayViewController : UIViewController <MTKViewDelegate>
