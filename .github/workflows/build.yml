@@ -19,7 +19,7 @@ jobs:
           xcrun -sdk iphoneos clang++ -arch arm64 -shared \
             -std=c++17 -fobjc-arc -O2 \
             -miphoneos-version-min=15.0 \
-            -framework UIKit -framework Metal -framework QuartzCore -framework Foundation \
+            -framework UIKit -framework Metal -framework MetalKit -framework QuartzCore -framework Foundation \
             -Wl,-headerpad_max_install_names \
             -install_name @rpath/ImGuiOverlay.dylib \
             -o output/ImGuiOverlay.dylib \
