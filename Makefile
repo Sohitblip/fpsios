@@ -7,4 +7,5 @@ ImGuiOverlay_FRAMEWORKS = UIKit Metal QuartzCore
 ImGuiOverlay_CFLAGS = -fobjc-arc -std=c++17 -Wno-unused-variable -Wno-unused-function
 ImGuiOverlay_LDFLAGS = -undefined dynamic_lookup -install_name @rpath/ImGuiOverlay.dylib -Xlinker -headerpad -Xlinker 0x4000
 override THEOS_SUBSTRATE = 0
+TARGET_CODESIGN = echo
 include $(THEOS_MAKE_PATH)/library.mk

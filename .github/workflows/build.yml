@@ -28,7 +28,6 @@ jobs:
           make FINALPACKAGE=1
           mkdir -p output
           find .theos/ -name "*.dylib" -exec cp {} output/ \;
-          # Pre-sign with Ad-Hoc signature so ESign has allocated LC_CODE_SIGNATURE
           codesign -f -s - output/ImGuiOverlay.dylib
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
