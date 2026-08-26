@@ -1,41 +1,30 @@
 name: Build iOS Dylib
-
 on:
   push:
     branches: [ "main", "master" ]
   workflow_dispatch:
-
 jobs:
   build:
     runs-on: macos-14
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
       - name: Install Theos
         run: |
-          set -e
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
-          echo "THEOS_MAKE_PATH=$HOME/theos/makefiles" >> $GITHUB_ENV
-
+          echo "THEOS=~/theos" >> $GITHUB_ENV
       - name: Download ImGui Dependencies
         run: |
           chmod +x ./get_imgui.sh
           ./get_imgui.sh
-
       - name: Build Dynamic Library
         run: |
-          export THEOS=$HOME/theos
-          export THEOS_MAKE_PATH=$HOME/theos/makefiles
+          export THEOS=~/theos
           make FINALPACKAGE=1
-
+          mkdir -p output
+          find .theos/ -name "*.dylib" -exec cp {} output/ \;
       - name: Upload Dylib Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: compiled-dylib
-          path: |
-            .theos/obj/debug/*.dylib
-            packages/*.deb
-            *.dylib
+          name: ImGuiOverlay-dylib
+          path: output/*.dylib
