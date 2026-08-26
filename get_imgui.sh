@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # get_imgui.sh
 # Downloads the matching Dear ImGui core + Metal backend source files
 # into the current directory (your project root).

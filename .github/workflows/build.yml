@@ -1,4 +1,4 @@
-﻿name: Build iOS Dylib
+name: Build iOS Dylib
 
 on:
   push:
@@ -15,8 +15,10 @@ jobs:
 
       - name: Install Theos
         run: |
+          set -e
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/theos/theos/master/bin/install-theos)"
-          echo "THEOS=~/theos" >> $GITHUB_ENV
+          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          echo "THEOS_MAKE_PATH=$HOME/theos/makefiles" >> $GITHUB_ENV
 
       - name: Download ImGui Dependencies
         run: |
@@ -25,7 +27,8 @@ jobs:
 
       - name: Build Dynamic Library
         run: |
-          export THEOS=~/theos
+          export THEOS=$HOME/theos
+          export THEOS_MAKE_PATH=$HOME/theos/makefiles
           make package FINALPACKAGE=1
 
       - name: Upload Dylib Artifact
