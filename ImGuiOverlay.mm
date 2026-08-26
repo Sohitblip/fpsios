@@ -18,6 +18,8 @@
 
 @implementation ImGuiOverlay
 
+- (BOOL)isInteractingWithMenu { ImGuiIO &io = ImGui::GetIO(); return io.WantCaptureMouse || _showMenu; }
+
 + (instancetype)sharedInstance {
   static ImGuiOverlay *shared = nil;
   static dispatch_once_t onceToken;

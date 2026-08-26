@@ -1,93 +1,103 @@
 #include "ImGuiOverlay.h"
-#include <objc/runtime.h>
-#include <objc/message.h>
 #include <UIKit/UIKit.h>
 #include <Metal/Metal.h>
-#include <QuartzCore/CAMetalLayer.h>
-#define HOOK_METHOD(cls_name, sel_name, new_imp, orig_ptr) \
-    do { \
-        Class _cls = objc_getClass(cls_name); \
-        if (_cls) { \
-            Method _m = class_getInstanceMethod(_cls, sel_name); \
-            if (_m) { \
-                orig_ptr = (__typeof__(orig_ptr))method_getImplementation(_m); \
-                method_setImplementation(_m, (IMP)new_imp); \
-            } \
-        } \
-    } while (0)
-static void (*orig_presentDrawable)(id, SEL, id<MTLDrawable>) = nullptr;
-static void hook_presentDrawable(id self, SEL _cmd, id<MTLDrawable> drawable) {
-    if (drawable && [drawable conformsToProtocol:@protocol(CAMetalDrawable)]) {
-        id<CAMetalDrawable> metalDrawable = (id<CAMetalDrawable>)drawable;
-        id<MTLCommandBuffer> cmdBuf = (id<MTLCommandBuffer>)self;
-        id<MTLDevice> device = cmdBuf.device;
-        if (device && metalDrawable.texture) {
-            static dispatch_once_t onceToken;
-            static id<MTLCommandQueue> queue = nil;
-            dispatch_once(&onceToken, ^{
-                queue = [device newCommandQueue];
-                [[ImGuiOverlay sharedInstance] setupWithDevice:device
-                                                  commandQueue:queue
-                                              colorPixelFormat:metalDrawable.texture.pixelFormat];
-            });
-            MTLRenderPassDescriptor *rpd = [MTLRenderPassDescriptor renderPassDescriptor];
-            rpd.colorAttachments[0].texture = metalDrawable.texture;
-            rpd.colorAttachments[0].loadAction = MTLLoadActionLoad;
-            rpd.colorAttachments[0].storeAction = MTLStoreActionStore;
-            [[ImGuiOverlay sharedInstance] beginFrameWithCommandBuffer:cmdBuf
-                                                  renderPassDescriptor:rpd];
-            id<MTLRenderCommandEncoder> enc = [cmdBuf renderCommandEncoderWithDescriptor:rpd];
-            if (enc) {
-                [[ImGuiOverlay sharedInstance] endFrameWithCommandEncoder:enc];
-                [enc endEncoding];
-            }
+#include <MetalKit/MetalKit.h>
+@interface OverlayWindow : UIWindow
+@end
+@implementation OverlayWindow
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hitView = [super hitTest:point withEvent:event];
+    if (hitView == self || hitView == self.rootViewController.view) {
+        if (![[ImGuiOverlay sharedInstance] isInteractingWithMenu]) {
+            return nil;
         }
     }
-    orig_presentDrawable(self, _cmd, drawable);
+    return hitView;
 }
-static void (*orig_sendEvent)(id, SEL, UIEvent *) = nullptr;
-static void hook_sendEvent(id self, SEL _cmd, UIEvent *event) {
-    if (event.type == UIEventTypeTouches) {
-        NSSet<UITouch *> *touches = [event allTouches];
-        UITouch *touch = [touches anyObject];
-        if (touch) {
-            if (touch.phase == UITouchPhaseBegan) {
-                [[ImGuiOverlay sharedInstance] handleTouchesBegan:touches withEvent:event];
-            } else if (touch.phase == UITouchPhaseMoved) {
-                [[ImGuiOverlay sharedInstance] handleTouchesMoved:touches withEvent:event];
-            } else if (touch.phase == UITouchPhaseEnded) {
-                [[ImGuiOverlay sharedInstance] handleTouchesEnded:touches withEvent:event];
-            } else if (touch.phase == UITouchPhaseCancelled) {
-                [[ImGuiOverlay sharedInstance] handleTouchesCancelled:touches withEvent:event];
+@end
+@interface OverlayViewController : UIViewController <MTKViewDelegate>
+@property (nonatomic, strong) MTKView *mtkView;
+@property (nonatomic, strong) id<MTLCommandQueue> commandQueue;
+@end
+@implementation OverlayViewController
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor clearColor];
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    self.commandQueue = [device newCommandQueue];
+    self.mtkView = [[MTKView alloc] initWithFrame:self.view.bounds device:device];
+    self.mtkView.delegate = self;
+    self.mtkView.clearColor = MTLClearColorMake(0, 0, 0, 0);
+    self.mtkView.backgroundColor = [UIColor clearColor];
+    self.mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+    self.mtkView.framebufferOnly = NO;
+    self.mtkView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.view addSubview:self.mtkView];
+    [[ImGuiOverlay sharedInstance] setupWithDevice:device
+                                      commandQueue:self.commandQueue
+                                  colorPixelFormat:self.mtkView.colorPixelFormat];
+}
+- (void)drawInMTKView:(MTKView *)view {
+    MTLRenderPassDescriptor *rpd = view.currentRenderPassDescriptor;
+    id<CAMetalDrawable> drawable = view.currentDrawable;
+    if (!rpd || !drawable) return;
+    rpd.colorAttachments[0].loadAction = MTLLoadActionClear;
+    rpd.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0);
+    rpd.colorAttachments[0].storeAction = MTLStoreActionStore;
+    id<MTLCommandBuffer> cmdBuf = [self.commandQueue commandBuffer];
+    [[ImGuiOverlay sharedInstance] beginFrameWithCommandBuffer:cmdBuf renderPassDescriptor:rpd];
+    id<MTLRenderCommandEncoder> enc = [cmdBuf renderCommandEncoderWithDescriptor:rpd];
+    if (enc) {
+        [[ImGuiOverlay sharedInstance] endFrameWithCommandEncoder:enc];
+        [enc endEncoding];
+    }
+    [cmdBuf presentDrawable:drawable];
+    [cmdBuf commit];
+}
+- (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {}
+- (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [[ImGuiOverlay sharedInstance] handleTouchesBegan:touches withEvent:event];
+}
+- (void)touchesMoved:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [[ImGuiOverlay sharedInstance] handleTouchesMoved:touches withEvent:event];
+}
+- (void)touchesEnded:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [[ImGuiOverlay sharedInstance] handleTouchesEnded:touches withEvent:event];
+}
+- (void)touchesCancelled:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+    [[ImGuiOverlay sharedInstance] handleTouchesCancelled:touches withEvent:event];
+}
+@end
+static OverlayWindow *g_overlayWindow = nil;
+static void InitOverlay() {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIWindowScene *scene = nil;
+        for (UIScene *s in UIApplication.sharedApplication.connectedScenes) {
+            if ([s isKindOfClass:[UIWindowScene class]] && s.activationState == UISceneActivationStateForegroundActive) {
+                scene = (UIWindowScene *)s;
+                break;
             }
         }
-    }
-    orig_sendEvent(self, _cmd, event);
+        if (scene) {
+            g_overlayWindow = [[OverlayWindow alloc] initWithWindowScene:scene];
+        } else {
+            g_overlayWindow = [[OverlayWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
+        }
+        g_overlayWindow.windowLevel = UIWindowLevelAlert + 1000.0;
+        g_overlayWindow.backgroundColor = [UIColor clearColor];
+        g_overlayWindow.rootViewController = [[OverlayViewController alloc] init];
+        g_overlayWindow.hidden = NO;
+        [g_overlayWindow makeKeyAndVisible];
+    });
 }
 __attribute__((constructor))
-static void overlayConstructor() {
-    @autoreleasepool {
-        const char *classes[] = {
-            "_MTLCommandBuffer",
-            "MTLIOAccelCommandBuffer",
-            "AGXG13XFamilyCommandBuffer",
-            "AGXG14XFamilyCommandBuffer",
-            "AGXG15XFamilyCommandBuffer"
-        };
-        for (const char *className : classes) {
-            Class cls = objc_getClass(className);
-            if (cls) {
-                Method m = class_getInstanceMethod(cls, @selector(presentDrawable:));
-                if (m && !orig_presentDrawable) {
-                    orig_presentDrawable = (void (*)(id, SEL, id<MTLDrawable>))method_getImplementation(m);
-                    method_setImplementation(m, (IMP)hook_presentDrawable);
-                }
-            }
-        }
-        HOOK_METHOD("UIWindow",
-                    @selector(sendEvent:),
-                    hook_sendEvent,
-                    orig_sendEvent);
-        NSLog(@"[ImGuiOverlay] Flicker-free presentDrawable hooks installed.");
-    }
+static void entry() {
+    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
+                                                      object:nil
+                                                       queue:[NSOperationQueue mainQueue]
+                                                  usingBlock:^(NSNotification *note) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            InitOverlay();
+        });
+    }];
 }
