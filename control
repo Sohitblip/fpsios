@@ -1,0 +1,8 @@
+﻿Package: com.yourname.imguioverlay
+Name: ImGui Debug Overlay
+Version: 1.0.0
+Architecture: iphoneos-arm64
+Description: Dear ImGui performance/debug overlay dylib for iOS 15+ sideloaded apps.
+Maintainer: Your Name <you@example.com>
+Author: Your Name <you@example.com>
+Section: Tweaks
